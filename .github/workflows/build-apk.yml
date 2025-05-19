@@ -13,7 +13,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30 # Augmenté au cas où le téléchargement d'une version plus récente de Flutter prendrait du temps
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -29,87 +29,84 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          # Le canal est 'stable' par défaut. Si '3.29.3' est sur un autre canal (beta, dev),
-          # cette action essaiera de le trouver. Si cela échoue, nous pourrions avoir besoin
-          # de spécifier le canal explicitement ou de le supprimer.
-          channel: stable
+          # 'channel' a été retiré pour permettre à l'action de trouver la version spécifique
+          # même si elle n'est pas sur le canal 'stable'.
+          # Si la version 3.29.3 est introuvable, cette étape peut échouer ou prendre une version par défaut.
+          # Vérifiez les logs de cette étape attentivement.
 
-      - name: Recreate Android project
+      - name: Ensure pubspec.yaml and lib are present from checkout
         run: |
-          echo "Current directory: $(pwd)"
+          echo "Checking for pubspec.yaml and lib directory..."
+          if [ ! -f "pubspec.yaml" ]; then
+            echo "::error::pubspec.yaml not found in checkout!"
+            exit 1
+          fi
+          echo "pubspec.yaml found."
+          if [ ! -d "lib" ]; then
+            echo "::error::lib directory not found in checkout!"
+            exit 1
+          fi
+          echo "lib directory found."
+          echo "Contents of current directory:"
           ls -la
 
-          # Sauvegarde des fichiers essentiels
-          echo "Backing up essential files..."
-          mkdir _backup
-          # Vérifier si les répertoires/fichiers existent avant de copier
-          if [ -d "lib" ]; then cp -r lib _backup/; fi
-          if [ -f "pubspec.yaml" ]; then cp pubspec.yaml _backup/; fi
-          # Ajoutez d'autres fichiers/dossiers importants à sauvegarder ici si nécessaire
-          # if [ -d "assets" ]; then cp -r assets _backup/; fi
+      - name: Recreate Android project specific files
+        run: |
+          echo "Current directory before Android recreation: $(pwd)"
+          ls -la
 
-          # Suppression du dossier android existant
+          # Suppression du dossier android existant pour une recréation propre
           echo "Removing existing android directory..."
           rm -rf android
+          echo "Android directory removed (if it existed)."
 
-          # Recréation du projet Android
-          # Le '.' indique de créer dans le répertoire courant.
-          # flutter create tentera d'exécuter 'flutter pub get' en utilisant le pubspec.yaml existant.
-          echo "Recreating Android project for 'caldec'..."
-          flutter create --platforms android --project-name caldec .
-          # Si cette étape échoue à cause de la résolution de dépendances,
-          # c'est que la version de Flutter/Dart n'est toujours pas correcte ou que pubspec.yaml a un souci.
+          # Recréation des fichiers spécifiques à la plateforme Android
+          # 'flutter create --platforms android .' utilisera le pubspec.yaml existant
+          # pour configurer le projet et exécutera 'flutter pub get' implicitement.
+          echo "Recreating Android platform files using 'flutter create --platforms android .'"
+          flutter create --platforms android .
+          # Si cette étape échoue, examinez attentivement les messages d'erreur de Flutter ici.
+          # Cela pourrait être dû à un problème de 'pub get' ou à une incompatibilité fondamentale.
+          echo "'flutter create --platforms android .' command completed."
 
-          # Restauration des fichiers
-          echo "Restoring backed-up files..."
-          if [ -d "_backup/lib" ]; then
-            rm -rf lib # Supprimer le dossier lib potentiellement recréé par flutter create
-            mv _backup/lib .
-          fi
-          if [ -f "_backup/pubspec.yaml" ]; then
-            # Le pubspec.yaml original est déjà utilisé par 'flutter create .'
-            # Le restaurer ici est redondant si 'flutter create .' a réussi pub get.
-            # Cependant, si 'flutter create .' modifie pubspec.yaml (peu probable pour une simple recréation de plateforme),
-            # cela assurerait que l'original est bien celui utilisé pour les étapes suivantes.
-            # Pour l'instant, on garde cette restauration.
-            mv _backup/pubspec.yaml .
-          fi
-          # Restaurez d'autres fichiers/dossiers ici si vous les avez sauvegardés
-          # if [ -d "_backup/assets" ]; then
-          #   rm -rf assets
-          #   mv _backup/assets .
-          # fi
-          rm -rf _backup
-          echo "Files restored."
+          # Vérification de la structure du projet Android
+          echo "Verifying Android project structure post-creation..."
+          echo "Listing contents of root directory:"
+          ls -la
+          echo "Listing contents of android/ directory:"
+          ls -la android/
+          echo "Listing contents of android/app/ directory:"
+          ls -la android/app/
 
-          # Vérification de la structure du projet Android (supporte .gradle et .gradle.kts)
-          echo "Verifying Android project structure..."
           if [ ! -f "android/app/build.gradle" ] && [ ! -f "android/app/build.gradle.kts" ]; then
-            echo "::error::Android project not properly generated. Neither android/app/build.gradle nor android/app/build.gradle.kts found."
-            echo "Listing contents of android/app/:"
-            ls -la android/app/
+            echo "::error::Android project not properly generated by 'flutter create .'. Neither android/app/build.gradle nor android/app/build.gradle.kts found in android/app/."
             exit 1
           else
-            echo "Android project structure seems OK."
+            echo "Android project structure seems OK after 'flutter create .'."
             if [ -f "android/app/build.gradle" ]; then echo "Found android/app/build.gradle"; fi
             if [ -f "android/app/build.gradle.kts" ]; then echo "Found android/app/build.gradle.kts"; fi
           fi
 
-      - name: Install dependencies (explicitly)
+      - name: Get dependencies (explicitly, as a safeguard)
         run: |
-          # Cette étape est une double vérification ou pour s'assurer que tout est à jour.
           # 'flutter create .' devrait déjà avoir exécuté 'pub get'.
+          # Cette étape est une double vérification ou pour s'assurer que tout est à jour
+          # avec le pubspec.yaml du checkout.
+          echo "Running 'flutter pub get' explicitly..."
           flutter pub get
-          # flutter pub upgrade # Décommentez si vous voulez toujours les dernières versions compatibles des paquets.
+          echo "'flutter pub get' completed."
 
       - name: Clean Flutter project
         run: flutter clean
 
       - name: Build APK
+        id: build_apk
         run: |
+          echo "Starting APK build..."
           flutter build apk --release --verbose
-          echo "Listing contents of APK output directory:"
+          echo "APK build command finished. Listing contents of APK output directory:"
           ls -la build/app/outputs/flutter-apk/
+        continue-on-error: false # Important: le workflow s'arrêtera si cette étape échoue.
 
       - name: Verify APK
         run: |
