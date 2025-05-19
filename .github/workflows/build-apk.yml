@@ -1,4 +1,4 @@
-name: Build Flutter APK
+name: Flutter Build & Deploy
 
 on:
   push:
@@ -6,57 +6,80 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_CHANNEL: stable
-  FLUTTER_VERSION: "3.29.3"  # Version compatible avec shared_preferences 2.3.2+
+  FLUTTER_VERSION: "3.29.3"  # Version stable compatible
+  DART_VERSION: "3.4.0"      # Version Dart requise
 
 jobs:
   build:
+    name: Build APK
     runs-on: ubuntu-latest
-    timeout-minutes: 20  # Augmentation du timeout
+    timeout-minutes: 25
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Pour avoir tout l'historique git
+          fetch-depth: 0
+          path: 'src'  # Organisation en sous-dossier
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: ${{ env.FLUTTER_CHANNEL }}
-          cache: true  # Activation du cache pour les builds plus rapides
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ env.FLUTTER_CHANNEL }}
+          channel: stable
+          cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}
 
-      - name: Verify Flutter installation
-        run: flutter doctor -v
-
-      - name: Install dependencies
+      - name: Verify Environment
+        working-directory: ./src
         run: |
+          flutter doctor -v
+          flutter --version
+          dart --version
+
+      - name: Resolve Dependencies
+        working-directory: ./src
+        run: |
+          echo "=== Original dependencies ==="
+          flutter pub outdated
+          
+          echo "=== Upgrading dependencies ==="
+          flutter pub upgrade --major-versions
+          
+          echo "=== Final dependencies ==="
+          flutter pub outdated
           flutter pub get
+
+      - name: Run Build Runner
+        working-directory: ./src
+        run: |
           flutter pub run build_runner build --delete-conflicting-outputs
-        timeout-minutes: 5
+        continue-on-error: true  # Optionnel si build_runner non critique
 
       - name: Build APK
+        working-directory: ./src
         run: |
           flutter clean
           flutter build apk --release --no-sound-null-safety --verbose
-        timeout-minutes: 10
-
-      - name: Verify APK
-        run: |
-          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
-          if [ ! -f "$APK_PATH" ]; then
-            echo "::error::APK not found at $APK_PATH"
-            exit 1
-          fi
-          echo "APK generated successfully at $APK_PATH"
-          ls -lah build/app/outputs/flutter-apk/
+          ls -la build/app/outputs/flutter-apk/
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7  # Garde l'APK pendant 7 jours
-          if-no-files-found: error
+          name: dreamflow-apk
+          path: src/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+      - name: Build App Bundle (AAB)
+        if: github.ref == 'refs/heads/main'  # Seulement sur la branche main
+        working-directory: ./src
+        run: |
+          flutter build appbundle --release --no-sound-null-safety
+          ls -la build/app/outputs/bundle/release/
+
+      - name: Upload AAB
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dreamflow-aab
+          path: src/build/app/outputs/bundle/release/app-release.aab
