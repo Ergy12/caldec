@@ -7,6 +7,8 @@ on:
 
 env:
   FLUTTER_VERSION: "3.29.3"
+  GRADLE_VERSION: "8.0"
+  JAVA_VERSION: "17"
 
 jobs:
   build:
@@ -14,36 +16,45 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout code
+      # Étape 1: Checkout du code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           path: 'src'
 
-      - name: Verify project structure
-        run: |
-          echo "=== Project Contents ==="
-          ls -R src/
-          echo "=== Main Dart File ==="
-          find src -name lib/main.dart || echo "Main.dart not found!"
+      # Étape 2: Configuration de l'environnement Java
+      - name: Setup Java JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
 
+      # Étape 3: Vérification de la structure du projet
+      - name: Validate project structure
+        run: |
+          echo "=== Project Structure ==="
+          ls -R src/
+          echo "=== Android Files Check ==="
+          [ -f "src/android/app/build.gradle" ] || exit 1
+          [ -f "src/android/gradle/wrapper/gradle-wrapper.properties" ] || exit 1
+          echo "Structure validation passed"
+
+      # Étape 4: Installation de Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}-gradle-${{ env.GRADLE_VERSION }}
 
-      - name: Validate Flutter project
+      # Étape 5: Diagnostic de l'environnement
+      - name: Flutter doctor
         working-directory: ./src
-        run: |
-          flutter doctor -v
-          if [ ! -f "lib/main.dart" ]; then
-            echo "::error::Main Dart file not found at lib/main.dart"
-            exit 1
-          fi
-          echo "Project validated successfully"
+        run: flutter doctor -v
 
+      # Étape 6: Gestion des dépendances
       - name: Install dependencies
         working-directory: ./src
         run: |
@@ -51,6 +62,16 @@ jobs:
           flutter pub upgrade
           flutter pub outdated
 
+      # Étape 7: Cache Gradle (optimisation)
+      - name: Gradle cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ env.GRADLE_VERSION }}-${{ hashFiles('src/android/gradle/wrapper/gradle-wrapper.properties') }}
+
+      # Étape 8: Build Android
       - name: Build APK
         working-directory: ./src
         run: |
@@ -58,9 +79,21 @@ jobs:
           flutter build apk --release --verbose
           ls -la build/app/outputs/flutter-apk/
 
+      # Étape 9: Validation de l'APK
+      - name: Verify APK
+        run: |
+          APK_PATH="src/build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::APK generation failed"
+            exit 1
+          fi
+          echo "APK generated successfully ($(du -h $APK_PATH | cut -f1))"
+
+      # Étape 10: Publication de l'artefact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: dreamflow-app-release
           path: src/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
+          if-no-files-found: error
