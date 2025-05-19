@@ -17,16 +17,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Recreate Android project
+      - name: Setup Flutter (early)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+
+      - name: Backup essential files
         run: |
-          # Sauvegarde des fichiers existants
           mkdir -p backup
           cp -r lib pubspec.yaml backup/
-          
-          # Recréation propre du projet
+
+      - name: Recreate Android project
+        run: |
           flutter create --platforms android --project-name caldec .
-          
-          # Restauration du code
           rm -rf lib
           mv backup/lib .
           mv backup/pubspec.yaml .
@@ -37,12 +41,6 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
 
       - name: Install dependencies
         run: |
