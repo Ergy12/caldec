@@ -1,0 +1,37 @@
+name: Build Flutter APK
+
+on:
+  push:
+    branches: [ main ]  # Se déclenche sur push vers "main"
+  workflow_dispatch:    # Permet de lancer manuellement
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Étape 1 - Récupération du code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Étape 2 - Installation de Flutter
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.19.0"  # Changez si nécessaire
+
+      # Étape 3 - Installation des dépendances
+      - name: Install dependencies
+        run: |
+          flutter pub get
+
+      # Étape 4 - Build de l'APK
+      - name: Build APK
+        run: flutter build apk --release
+
+      # Étape 5 - Téléchargement de l'APK
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
