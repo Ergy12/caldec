@@ -16,84 +16,43 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # Étape 1: Checkout du code
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          path: 'src'
 
-      # Étape 2: Configuration de l'environnement Java
+      - name: Reorganize project structure
+        run: |
+          # Déplace le dossier android à la racine
+          mv src/lib/android .
+          # Vérifie la nouvelle structure
+          echo "=== Nouvelle Structure ==="
+          ls -R
+          [ -f "android/app/build.gradle" ] || exit 1
+          [ -f "android/gradle/wrapper/gradle-wrapper.properties" ] || exit 1
+
       - name: Setup Java JDK
         uses: actions/setup-java@v3
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
 
-      # Étape 3: Vérification de la structure du projet
-      - name: Validate project structure
-        run: |
-          echo "=== Project Structure ==="
-          ls -R src/
-          echo "=== Android Files Check ==="
-          [ -f "src/android/app/build.gradle" ] || exit 1
-          [ -f "src/android/gradle/wrapper/gradle-wrapper.properties" ] || exit 1
-          echo "Structure validation passed"
-
-      # Étape 4: Installation de Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
-          cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}-gradle-${{ env.GRADLE_VERSION }}
 
-      # Étape 5: Diagnostic de l'environnement
-      - name: Flutter doctor
-        working-directory: ./src
-        run: flutter doctor -v
-
-      # Étape 6: Gestion des dépendances
       - name: Install dependencies
-        working-directory: ./src
         run: |
           flutter pub get
           flutter pub upgrade
-          flutter pub outdated
 
-      # Étape 7: Cache Gradle (optimisation)
-      - name: Gradle cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ env.GRADLE_VERSION }}-${{ hashFiles('src/android/gradle/wrapper/gradle-wrapper.properties') }}
-
-      # Étape 8: Build Android
       - name: Build APK
-        working-directory: ./src
         run: |
           flutter clean
           flutter build apk --release --verbose
-          ls -la build/app/outputs/flutter-apk/
 
-      # Étape 9: Validation de l'APK
-      - name: Verify APK
-        run: |
-          APK_PATH="src/build/app/outputs/flutter-apk/app-release.apk"
-          if [ ! -f "$APK_PATH" ]; then
-            echo "::error::APK generation failed"
-            exit 1
-          fi
-          echo "APK generated successfully ($(du -h $APK_PATH | cut -f1))"
-
-      # Étape 10: Publication de l'artefact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: dreamflow-app-release
-          path: src/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
-          if-no-files-found: error
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
