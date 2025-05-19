@@ -2,7 +2,7 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -12,30 +12,30 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          path: 'caldec_project'  # Spécifiez le nom de votre dossier racine
+
+      - name: Find Flutter project root
+        id: find-root
+        run: |
+          # Cherche le dossier contenant pubspec.yaml
+          PROJECT_ROOT=$(dirname $(find . -name pubspec.yaml -print -quit))
+          echo "PROJECT_ROOT=${PROJECT_ROOT:-.}" >> $GITHUB_OUTPUT
+          echo "Found project at: ${PROJECT_ROOT:-root directory}"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.19.0"
 
-      - name: Verify project structure
-        run: |
-          cd caldec_project
-          ls -la
-          flutter doctor
-
       - name: Install dependencies
-        working-directory: ./caldec_project
+        working-directory: ${{ steps.find-root.outputs.PROJECT_ROOT }}
         run: flutter pub get
 
       - name: Build APK
-        working-directory: ./caldec_project
+        working-directory: ${{ steps.find-root.outputs.PROJECT_ROOT }}
         run: flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: caldec_project/build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ steps.find-root.outputs.PROJECT_ROOT }}/build/app/outputs/flutter-apk/app-release.apk
