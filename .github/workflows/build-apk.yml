@@ -6,7 +6,9 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: "3.29.3"
+  # Assurez-vous que cette version de Flutter est valide.
+  # Si "3.29.3" n'est pas une version officielle, envisagez d'utiliser une version stable récente comme "3.19.6" ou "3.22.0".
+  FLUTTER_VERSION: "3.19.6" # Exemple de version stable, ajustez si "3.29.3" est correcte et disponible.
 
 jobs:
   build:
@@ -20,57 +22,95 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
-          java-version: '17'
+          java-version: '17' # Java 17 est un bon choix pour les versions récentes de Gradle.
           distribution: 'temurin'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          channel: stable # 'stable' est généralement recommandé.
 
       - name: Recreate Android project
         run: |
+          echo "Current directory: $(pwd)"
+          ls -la
+
           # Sauvegarde des fichiers essentiels
+          echo "Backing up essential files..."
           mkdir _backup
-          cp -r lib pubspec.yaml _backup/
-          
+          # Vérifier si les répertoires/fichiers existent avant de copier
+          if [ -d "lib" ]; then cp -r lib _backup/; fi
+          if [ -f "pubspec.yaml" ]; then cp pubspec.yaml _backup/; fi
+          # Ajoutez d'autres fichiers/dossiers importants à sauvegarder ici si nécessaire
+          # Par exemple, assets, etc.
+          # if [ -d "assets" ]; then cp -r assets _backup/; fi
+
           # Suppression du dossier android existant
+          echo "Removing existing android directory..."
           rm -rf android
-          
-          # Recréation du projet
+
+          # Recréation du projet Android
+          # Assurez-vous que le nom du projet correspond à celui dans votre pubspec.yaml ou à vos attentes.
+          echo "Recreating Android project for 'caldec'..."
           flutter create --platforms android --project-name caldec .
-          
+          # Le '.' indique de créer dans le répertoire courant.
+
           # Restauration des fichiers
-          rm -rf lib
-          mv _backup/lib .
-          mv _backup/pubspec.yaml .
+          echo "Restoring backed-up files..."
+          if [ -d "_backup/lib" ]; then
+            rm -rf lib # Supprimer le dossier lib potentiellement recréé par flutter create
+            mv _backup/lib .
+          fi
+          if [ -f "_backup/pubspec.yaml" ]; then
+            mv _backup/pubspec.yaml .
+          fi
+          # Restaurez d'autres fichiers/dossiers ici si vous les avez sauvegardés
+          # if [ -d "_backup/assets" ]; then
+          #   rm -rf assets # Supprimer le dossier assets potentiellement recréé
+          #   mv _backup/assets .
+          # fi
           rm -rf _backup
-          
-          # Vérification de la structure
-          if [ ! -f "android/app/build.gradle" ]; then
-            echo "::error::Android project not properly generated"
+          echo "Files restored."
+
+          # Vérification de la structure du projet Android (supporte .gradle et .gradle.kts)
+          echo "Verifying Android project structure..."
+          if [ ! -f "android/app/build.gradle" ] && [ ! -f "android/app/build.gradle.kts" ]; then
+            echo "::error::Android project not properly generated. Neither android/app/build.gradle nor android/app/build.gradle.kts found."
+            echo "Listing contents of android/app/:"
+            ls -la android/app/
             exit 1
+          else
+            echo "Android project structure seems OK."
+            if [ -f "android/app/build.gradle" ]; then echo "Found android/app/build.gradle"; fi
+            if [ -f "android/app/build.gradle.kts" ]; then echo "Found android/app/build.gradle.kts"; fi
           fi
 
       - name: Install dependencies
         run: |
           flutter pub get
-          flutter pub upgrade
+          # flutter pub upgrade # Décommentez si vous voulez toujours les dernières versions compatibles des paquets.
+
+      - name: Clean Flutter project (optional but good practice)
+        run: flutter clean
 
       - name: Build APK
         run: |
-          flutter clean
+          # Naviguer dans le répertoire du projet Flutter si flutter create a créé un sous-répertoire
+          # (ce n'est pas le cas ici avec '.')
+          # cd caldec # Décommentez et ajustez si votre projet est dans un sous-répertoire
           flutter build apk --release --verbose
+          echo "Listing contents of APK output directory:"
           ls -la build/app/outputs/flutter-apk/
 
       - name: Verify APK
         run: |
+          # Ajustez le chemin si votre nom d'application ou la structure de sortie est différent
           if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK not generated"
+            echo "::error::APK not generated at build/app/outputs/flutter-apk/app-release.apk"
             exit 1
           fi
-          echo "APK generated successfully"
+          echo "APK generated successfully: build/app/outputs/flutter-apk/app-release.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
