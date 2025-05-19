@@ -7,8 +7,6 @@ on:
 
 env:
   FLUTTER_VERSION: "3.29.3"
-  GRADLE_VERSION: "8.0"
-  JAVA_VERSION: "17"
 
 jobs:
   build:
@@ -18,21 +16,30 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Reorganize project structure
+      - name: Find Android folder
+        id: find-android
         run: |
-          # Déplace le dossier android à la racine
-          mv src/lib/android .
-          # Vérifie la nouvelle structure
-          echo "=== Nouvelle Structure ==="
-          ls -R
-          [ -f "android/app/build.gradle" ] || exit 1
-          [ -f "android/gradle/wrapper/gradle-wrapper.properties" ] || exit 1
+          # Recherche récursive du dossier android
+          ANDROID_PATH=$(find . -type d -name android -print -quit)
+          echo "ANDROID_PATH=${ANDROID_PATH}" >> $GITHUB_OUTPUT
+          echo "Android folder found at: ${ANDROID_PATH}"
 
-      - name: Setup Java JDK
+      - name: Validate Android structure
+        run: |
+          if [ -z "${{ steps.find-android.outputs.ANDROID_PATH }}" ]; then
+            echo "::error::No android folder found, generating one..."
+            flutter create --platforms android .
+          else
+            echo "Android folder exists at ${{ steps.find-android.outputs.ANDROID_PATH }}"
+          fi
+
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
-          java-version: ${{ env.JAVA_VERSION }}
+          java-version: '17'
           distribution: 'temurin'
 
       - name: Setup Flutter
