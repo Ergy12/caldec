@@ -1,0 +1,41 @@
+name: Build Flutter APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Find Flutter project root
+        id: find-root
+        run: |
+          # Cherche le dossier contenant pubspec.yaml
+          PROJECT_ROOT=$(dirname $(find . -name pubspec.yaml -print -quit))
+          echo "PROJECT_ROOT=${PROJECT_ROOT:-.}" >> $GITHUB_OUTPUT
+          echo "Found project at: ${PROJECT_ROOT:-root directory}"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.19.0"
+
+      - name: Install dependencies
+        working-directory: ${{ steps.find-root.outputs.PROJECT_ROOT }}
+        run: flutter pub get
+
+      - name: Build APK
+        working-directory: ${{ steps.find-root.outputs.PROJECT_ROOT }}
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: ${{ steps.find-root.outputs.PROJECT_ROOT }}/build/app/outputs/flutter-apk/app-release.apk
