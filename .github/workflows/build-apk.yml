@@ -38,8 +38,8 @@ jobs:
         working-directory: ./src
         run: |
           flutter doctor -v
-          if [ ! -f ".main.dart" ]; then
-            echo "::error::Main Dart file not found at /main.dart"
+          if [ ! -f "lib/main.dart" ]; then
+            echo "::error::Main Dart file not found at lib/main.dart"
             exit 1
           fi
           echo "Project validated successfully"
