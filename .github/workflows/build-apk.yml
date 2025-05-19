@@ -1,4 +1,4 @@
-name: Build Flutter APK
+name: Flutter APK Builder
 
 on:
   push:
@@ -8,34 +8,67 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
-      - name: Checkout code
+      # Étape 1: Checkout du code
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Find Flutter project root
-        id: find-root
+      # Étape 2: Diagnostic complet de la structure
+      - name: Debug project structure
+        id: debug
         run: |
-          # Cherche le dossier contenant pubspec.yaml
-          PROJECT_ROOT=$(dirname $(find . -name pubspec.yaml -print -quit))
-          echo "PROJECT_ROOT=${PROJECT_ROOT:-.}" >> $GITHUB_OUTPUT
-          echo "Found project at: ${PROJECT_ROOT:-root directory}"
+          echo "=== Structure du dépôt ==="
+          ls -R
+          echo ""
+          echo "=== Recherche de pubspec.yaml ==="
+          find . -name pubspec.yaml -print
+          PROJECT_ROOT=$(dirname $(find . -name pubspec.yaml -print -quit) 2>/dev/null || echo ".")
+          echo "PROJECT_ROOT=${PROJECT_ROOT}" >> $GITHUB_OUTPUT
+          echo "Project root detected at: ${PROJECT_ROOT}"
 
-      - name: Set up Flutter
+      # Étape 3: Setup Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.19.0"
+          channel: stable
 
+      # Étape 4: Vérification de l'environnement
+      - name: Verify environment
+        working-directory: ${{ steps.debug.outputs.PROJECT_ROOT }}
+        run: |
+          echo "=== Vérification Flutter ==="
+          flutter doctor -v
+          echo ""
+          echo "=== Contenu du dossier projet ==="
+          ls -la
+          echo ""
+          echo "=== Chemin pubspec.yaml ==="
+          realpath pubspec.yaml
+
+      # Étape 5: Installation des dépendances
       - name: Install dependencies
-        working-directory: ${{ steps.find-root.outputs.PROJECT_ROOT }}
-        run: flutter pub get
+        working-directory: ${{ steps.debug.outputs.PROJECT_ROOT }}
+        run: |
+          flutter pub get
+          flutter pub run build_runner build --delete-conflicting-outputs
 
+      # Étape 6: Build APK
       - name: Build APK
-        working-directory: ${{ steps.find-root.outputs.PROJECT_ROOT }}
-        run: flutter build apk --release
+        working-directory: ${{ steps.debug.outputs.PROJECT_ROOT }}
+        run: |
+          flutter clean
+          flutter build apk --release --verbose
+          ls -la build/app/outputs/flutter-apk/
 
-      - name: Upload APK
+      # Étape 7: Upload de l'APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: ${{ steps.find-root.outputs.PROJECT_ROOT }}/build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ steps.debug.outputs.PROJECT_ROOT }}/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
