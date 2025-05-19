@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: "3.29.3"  # Version stable recommandée
+  FLUTTER_VERSION: "3.29.3"
 
 jobs:
   build:
@@ -14,61 +14,67 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # Étape 1: Checkout du code
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # Étape 2: Setup Java (requis pour Android)
-      - name: Set up JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # Étape 3: Setup Flutter
-      - name: Set up Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
-          cache: true
 
-      # Étape 4: Nettoyage et création projet Android
-      - name: Clean and regenerate Android
+      - name: Recreate Android project
         run: |
           # Sauvegarde des fichiers essentiels
-          mkdir _temp_backup
-          cp -r lib pubspec.yaml _temp_backup/
+          mkdir _backup
+          cp -r lib pubspec.yaml _backup/
           
-          # Recréation complète du projet
-          flutter create --platforms android --org com.example --project-name caldec .
+          # Suppression du dossier android existant
+          rm -rf android
+          
+          # Recréation du projet
+          flutter create --platforms android --project-name caldec .
           
           # Restauration des fichiers
           rm -rf lib
-          mv _temp_backup/lib .
-          mv _temp_backup/pubspec.yaml .
-          rm -rf _temp_backup
+          mv _backup/lib .
+          mv _backup/pubspec.yaml .
+          rm -rf _backup
           
-          # Vérification structure
-          [ -f "android/app/build.gradle" ] || exit 1
+          # Vérification de la structure
+          if [ ! -f "android/app/build.gradle" ]; then
+            echo "::error::Android project not properly generated"
+            exit 1
+          fi
 
-      # Étape 5: Installation dépendances
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          flutter pub upgrade
 
-      # Étape 6: Build APK
-      - name: Build release APK
+      - name: Build APK
         run: |
           flutter clean
           flutter build apk --release --verbose
           ls -la build/app/outputs/flutter-apk/
 
-      # Étape 7: Upload artifact
+      - name: Verify APK
+        run: |
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "::error::APK not generated"
+            exit 1
+          fi
+          echo "APK generated successfully"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: caldec-release
+          name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
