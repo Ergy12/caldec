@@ -16,25 +16,21 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Find Android folder
-        id: find-android
+      - name: Recreate Android project
         run: |
-          # Recherche récursive du dossier android
-          ANDROID_PATH=$(find . -type d -name android -print -quit)
-          echo "ANDROID_PATH=${ANDROID_PATH}" >> $GITHUB_OUTPUT
-          echo "Android folder found at: ${ANDROID_PATH}"
-
-      - name: Validate Android structure
-        run: |
-          if [ -z "${{ steps.find-android.outputs.ANDROID_PATH }}" ]; then
-            echo "::error::No android folder found, generating one..."
-            flutter create --platforms android .
-          else
-            echo "Android folder exists at ${{ steps.find-android.outputs.ANDROID_PATH }}"
-          fi
+          # Sauvegarde des fichiers existants
+          mkdir -p backup
+          cp -r lib pubspec.yaml backup/
+          
+          # Recréation propre du projet
+          flutter create --platforms android --project-name caldec .
+          
+          # Restauration du code
+          rm -rf lib
+          mv backup/lib .
+          mv backup/pubspec.yaml .
+          rm -rf backup
 
       - name: Setup Java
         uses: actions/setup-java@v3
