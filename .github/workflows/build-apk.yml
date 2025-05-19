@@ -1,74 +1,62 @@
-name: Flutter APK Builder
+name: Build Flutter APK
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+env:
+  FLUTTER_CHANNEL: stable
+  FLUTTER_VERSION: "3.29.3"  # Version compatible avec shared_preferences 2.3.2+
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20  # Augmentation du timeout
 
     steps:
-      # Étape 1: Checkout du code
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Pour avoir tout l'historique git
 
-      # Étape 2: Diagnostic complet de la structure
-      - name: Debug project structure
-        id: debug
-        run: |
-          echo "=== Structure du dépôt ==="
-          ls -R
-          echo ""
-          echo "=== Recherche de pubspec.yaml ==="
-          find . -name pubspec.yaml -print
-          PROJECT_ROOT=$(dirname $(find . -name pubspec.yaml -print -quit) 2>/dev/null || echo ".")
-          echo "PROJECT_ROOT=${PROJECT_ROOT}" >> $GITHUB_OUTPUT
-          echo "Project root detected at: ${PROJECT_ROOT}"
-
-      # Étape 3: Setup Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.19.0"
-          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true  # Activation du cache pour les builds plus rapides
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ env.FLUTTER_CHANNEL }}
 
-      # Étape 4: Vérification de l'environnement
-      - name: Verify environment
-        working-directory: ${{ steps.debug.outputs.PROJECT_ROOT }}
-        run: |
-          echo "=== Vérification Flutter ==="
-          flutter doctor -v
-          echo ""
-          echo "=== Contenu du dossier projet ==="
-          ls -la
-          echo ""
-          echo "=== Chemin pubspec.yaml ==="
-          realpath pubspec.yaml
+      - name: Verify Flutter installation
+        run: flutter doctor -v
 
-      # Étape 5: Installation des dépendances
       - name: Install dependencies
-        working-directory: ${{ steps.debug.outputs.PROJECT_ROOT }}
         run: |
           flutter pub get
           flutter pub run build_runner build --delete-conflicting-outputs
+        timeout-minutes: 5
 
-      # Étape 6: Build APK
       - name: Build APK
-        working-directory: ${{ steps.debug.outputs.PROJECT_ROOT }}
         run: |
           flutter clean
-          flutter build apk --release --verbose
-          ls -la build/app/outputs/flutter-apk/
+          flutter build apk --release --no-sound-null-safety --verbose
+        timeout-minutes: 10
 
-      # Étape 7: Upload de l'APK
-      - name: Upload APK artifact
+      - name: Verify APK
+        run: |
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::APK not found at $APK_PATH"
+            exit 1
+          fi
+          echo "APK generated successfully at $APK_PATH"
+          ls -lah build/app/outputs/flutter-apk/
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: ${{ steps.debug.outputs.PROJECT_ROOT }}/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7  # Garde l'APK pendant 7 jours
           if-no-files-found: error
