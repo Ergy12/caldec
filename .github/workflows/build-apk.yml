@@ -1,4 +1,4 @@
-name: Flutter Build & Deploy
+name: Flutter Build Pipeline
 
 on:
   push:
@@ -10,9 +10,8 @@ env:
 
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -21,6 +20,13 @@ jobs:
           fetch-depth: 0
           path: 'src'
 
+      - name: Verify project structure
+        run: |
+          echo "=== Project Contents ==="
+          ls -R src/
+          echo "=== Main Dart File ==="
+          find src -name main.dart || echo "Main.dart not found!"
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -28,21 +34,22 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Verify Environment
+      - name: Validate Flutter project
         working-directory: ./src
-        run: flutter doctor -v
+        run: |
+          flutter doctor -v
+          if [ ! -f "lib/main.dart" ]; then
+            echo "::error::Main Dart file not found at lib/main.dart"
+            exit 1
+          fi
+          echo "Project validated successfully"
 
-      - name: Resolve Dependencies
+      - name: Install dependencies
         working-directory: ./src
         run: |
           flutter pub get
           flutter pub upgrade
           flutter pub outdated
-
-      - name: Run Build Runner
-        working-directory: ./src
-        run: flutter pub run build_runner build --delete-conflicting-outputs
-        continue-on-error: true
 
       - name: Build APK
         working-directory: ./src
@@ -54,6 +61,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: dreamflow-apk
+          name: app-release
           path: src/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
