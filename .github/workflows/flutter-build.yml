@@ -1,32 +1,29 @@
-name: Flutter APK Build
+name: Build Flutter APK
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4  # Version mise à jour
 
-      - name: Setup Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.13.0'
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build release APK
+      - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v3
+      - name: Upload APK
+        uses: actions/upload-artifact@v4  # Version corrigée
         with:
-          name: app-release.apk
+          name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
