@@ -5,7 +5,7 @@ on:
     branches: [main] # Déclenche le workflow sur les push vers la branche main
   workflow_dispatch: # Permet de déclencher le workflow manuellement depuis l'interface GitHub
 
-env:
+env:,lllmllml
   # Spécifiez la version de Flutter. Utilisation de la version stable pour une meilleure fiabilité.
   FLUTTER_VERSION: "stable"
 
