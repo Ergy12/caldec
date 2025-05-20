@@ -3,33 +3,33 @@ name: Build Flutter APK
 on:
   push:
     branches:
-      - main # Exécute le workflow sur chaque push sur la branche 'main'
+      - main  # Exécute le workflow sur chaque push sur la branche 'main'
   pull_request:
     branches:
-      - main # Exécute le workflow sur chaque pull request vers la branche 'main'
+      - main  # Exécute le workflow sur chaque PR vers 'main'
 
 jobs:
   build_apk:
-    runs-on: ubuntu-latest # Utilise un runner Ubuntu
+    runs-on: ubuntu-latest  # Runner Ubuntu
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Récupère le code de votre dépôt GitHub
+        uses: actions/checkout@v4
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.x.x' # Spécifiez la version de Flutter que vous souhaitez utiliser (ex: 3.22.x, 3.19.x)
-          channel: 'stable' # Utilisez le canal stable
+          flutter-version: '3.x.x'  # Compatible avec toutes les versions 3
+          channel: stable
 
       - name: Get Flutter packages
-        run: flutter pub get # Télécharge les dépendances Flutter
+        run: flutter pub get
 
       - name: Build Android APK
-        run: flutter build apk --release # Construit l'APK en mode release
+        run: flutter build apk --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk # Chemin de l'APK généré
+          name: caldec-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
