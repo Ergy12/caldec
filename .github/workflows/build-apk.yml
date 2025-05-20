@@ -1,4 +1,4 @@
-name: Flutter Build APK
+name: Flutter Build APK Robuste
 
 on:
   push:
@@ -8,13 +8,14 @@ on:
 env:
   # Spécifiez la version de Flutter. Utilisez une version stable si possible,
   # ou celle qui est connue pour fonctionner avec votre projet.
-  # La version 3.29.3 est conservée ici comme dans votre workflow original.
+  # La version 3.29.3 est conservée ici, mais vous pouvez essayer 'stable' si les problèmes persistent.
   FLUTTER_VERSION: "3.29.3"
+  # FLUTTER_VERSION: "stable" # Alternative : utiliser la dernière version stable
 
 jobs:
   build:
     runs-on: ubuntu-latest # Exécute le job sur un runner Ubuntu
-    timeout-minutes: 30 # Ajout d'un timeout pour éviter des exécutions trop longues
+    timeout-minutes: 45 # Augmentation du timeout pour les builds potentiellement longs
 
     steps:
       - name: Checkout code
@@ -28,6 +29,7 @@ jobs:
           # Java 17 est recommandé pour les versions récentes de Flutter et Gradle
           java-version: '17'
           distribution: 'temurin' # Utilise la distribution Temurin (Eclipse Adoptium)
+          cache: 'gradle' # Active le cache Gradle pour accélérer les builds suivants
 
       - name: Setup Flutter
         # Configure l'environnement Flutter
@@ -35,75 +37,73 @@ jobs:
         with:
           # Utilise la version de Flutter spécifiée dans les variables d'environnement
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          # Le 'channel' n'est pas spécifié ici pour permettre à l'action
-          # de trouver la version exacte. Si vous utilisez une version stable,
-          # vous pourriez ajouter 'channel: stable'.
+          # Si vous utilisez une version spécifique et non 'stable', le canal n'est généralement pas nécessaire.
+          # Si vous utilisez 'stable', vous pouvez ajouter 'channel: stable'.
+          cache: true # Active le cache Flutter pour accélérer les builds suivants
 
       - name: Get dependencies
         # Exécute 'flutter pub get' pour télécharger les dépendances du projet
         # C'est une étape essentielle pour s'assurer que toutes les librairies sont disponibles
         run: |
-          echo "Running 'flutter pub get'..."
+          echo "Exécution de 'flutter pub get'..."
           flutter pub get
-          echo "'flutter pub get' completed."
+          echo "'flutter pub get' terminée."
 
-      - name: List contents of android directory before potential recreation
-        # Liste les fichiers dans le dossier android pour vérifier sa présence et son contenu initial
+      - name: Check Flutter Doctor
+        # Exécute flutter doctor pour vérifier l'état de l'environnement Flutter
+        # Utile pour le débogage si des problèmes de configuration persistent
         run: |
-          echo "Contents of android/ directory before potential recreation:"
-          ls -la android/ || echo "android/ directory not found or empty." # Affiche le contenu ou un message si le dossier n'existe pas
+          echo "Exécution de 'flutter doctor'..."
+          flutter doctor
+          echo "'flutter doctor' terminée."
 
       - name: Attempt to re-configure Android project files
-        # Exécute flutter create pour s'assurer que les fichiers Android sont correctement configurés
-        # Cela peut aider à résoudre les problèmes de projet "unsupported"
-        # L'option '--platforms android .' tente de configurer la plateforme Android dans le répertoire courant
+        # Exécute flutter create pour s'assurer que les fichiers Android sont correctement configurés.
+        # Cela peut aider à résoudre les problèmes de projet "unsupported" ou d'autres incohérences.
+        # L'option '--platforms android .' tente de configurer la plateforme Android dans le répertoire courant.
+        # Nous utilisons '|| true' pour que cette étape ne fasse pas échouer le workflow si elle rencontre une erreur,
+        # nous permettant d'inspecter les logs des étapes suivantes.
         run: |
-          echo "Attempting to re-configure Android project files using 'flutter create --platforms android .'"
-          flutter create --platforms android .
-          echo "'flutter create --platforms android .' command completed."
-        # Continue même si cette étape échoue, pour pouvoir inspecter les logs suivants si nécessaire.
-        # Si le problème persiste, on pourra rendre cette étape critique.
-        continue-on-error: true
-
-      - name: List contents of android directory after potential recreation
-        # Liste à nouveau les fichiers dans le dossier android après l'étape flutter create
-        run: |
-          echo "Contents of android/ directory after potential recreation:"
-          ls -la android/ || echo "android/ directory not found or empty after create."
+          echo "Tentative de re-configuration des fichiers de projet Android avec 'flutter create --platforms android .'."
+          flutter create --platforms android . || true
+          echo "'flutter create --platforms android .' command tentée."
 
       - name: Clean Flutter project
-        # Nettoie les artefacts des builds précédents
-        # Souvent utile pour résoudre des problèmes de build causés par des caches obsolètes
+        # Nettoie les artefacts des builds précédents.
+        # Souvent utile pour résoudre des problèmes de build causés par des caches obsolètes.
+        # Ajout de '|| true' pour ne pas faire échouer le workflow si le clean rencontre un problème mineur.
         run: |
-          echo "Running 'flutter clean'..."
-          flutter clean
-          echo "'flutter clean' completed."
+          echo "Exécution de 'flutter clean'..."
+          flutter clean || true
+          echo "'flutter clean' terminée."
 
       - name: Build APK
-        # Exécute la commande de build pour générer l'APK de release
-        # --release : Construit une version optimisée pour la publication
-        # --verbose : Fournit des informations détaillées pendant le build, utile pour le débogage
+        # Exécute la commande de build pour générer l'APK de release.
+        # --release : Construit une version optimisée pour la publication.
+        # --verbose : Fournit des informations détaillées pendant le build, utile pour le débogage.
+        # L'étape échouera si le build ne réussit pas, ce qui est le comportement attendu.
         run: |
-          echo "Starting APK build..."
+          echo "Démarrage du build APK..."
           flutter build apk --release --verbose
-          echo "APK build command finished."
+          echo "Commande de build APK terminée."
 
       - name: Verify APK
-        # Vérifie que le fichier APK a bien été généré à l'emplacement attendu
+        # Vérifie que le fichier APK a bien été généré à l'emplacement attendu.
+        # Cette étape échouera si le fichier n'est pas trouvé.
         run: |
           APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
-          echo "Checking for APK at: $APK_PATH"
+          echo "Vérification de l'APK à l'emplacement : $APK_PATH"
           if [ ! -f "$APK_PATH" ]; then
-            echo "::error::APK not generated at $APK_PATH"
+            echo "::error::APK non généré à $APK_PATH"
             exit 1
           else
-            echo "APK generated successfully: $APK_PATH"
+            echo "APK généré avec succès : $APK_PATH"
             ls -lh "$APK_PATH" # Affiche les détails du fichier APK
           fi
 
       - name: Upload APK
-        # Charge l'APK généré en tant qu'artefact de workflow
-        # Cela rend l'APK disponible pour le téléchargement depuis la page du workflow
+        # Charge l'APK généré en tant qu'artefact de workflow.
+        # Cela rend l'APK disponible pour le téléchargement depuis la page du workflow.
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk # Nom de l'artefact
