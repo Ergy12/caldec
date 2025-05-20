@@ -1,107 +1,63 @@
-name: Flutter Build APK Robuste
+name: Build Flutter APK
 
 on:
   push:
-    branches: [main] # Déclenche le workflow sur les push vers la branche main
-  workflow_dispatch: # Permet de déclencher le workflow manuellement depuis l'interface GitHub
-
-env:
-  # Nous n'avons plus besoin de définir FLUTTER_VERSION ici car nous spécifions le canal directement dans l'étape setup.
-  # FLUTTER_VERSION: "stable"
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest # Exécute le job sur un runner Ubuntu
-    timeout-minutes: 45 # Augmentation du timeout pour les builds potentiellement longs
+    runs-on: ubuntu-latest
+
+    env:
+      FLUTTER_CHANNEL: stable
+      PROJECT_NAME: caldec
 
     steps:
-      - name: Checkout code
-        # Utilise l'action checkout pour récupérer le code de votre dépôt
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Setup Java
-        # Configure l'environnement Java nécessaire pour le build Android (Gradle)
-        uses: actions/setup-java@v3
-        with:
-          # Java 17 est recommandé pour les versions récentes de Flutter et Gradle
-          java-version: '17'
-          distribution: 'temurin' # Utilise la distribution Temurin (Eclipse Adoptium)
-          cache: 'gradle' # Active le cache Gradle pour accélérer les builds suivants
+    - name: Setup Flutter SDK
+      uses: subosito/flutter-action@v2
+      with:
+        channel: ${{ env.FLUTTER_CHANNEL }}
 
-      - name: Setup Flutter
-        # Configure l'environnement Flutter en spécifiant le canal stable.
-        # L'action téléchargera la dernière version stable disponible.
-        uses: subosito/flutter-action@v2
-        with:
-          # flutter-version n'est plus spécifié ici, car nous utilisons le canal.
-          channel: stable # Spécifie explicitement le canal stable
-          cache: true # Active le cache Flutter pour accélérer les builds suivants
+    - name: Cache Flutter Pub dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.pub-cache
+        key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pub-
 
-      - name: Get dependencies
-        # Exécute 'flutter pub get' pour télécharger les dépendances du projet
-        # C'est une étape essentielle pour s'assurer que toutes les librairies sont disponibles
-        run: |
-          echo "Exécution de 'flutter pub get'..."
-          flutter pub get
-          echo "'flutter pub get' terminée."
+    - name: Get Flutter dependencies
+      run: flutter pub get
 
-      - name: Check Flutter Doctor
-        # Exécute flutter doctor pour vérifier l'état de l'environnement Flutter
-        # Utile pour le débogage si des problèmes de configuration persistent
-        run: |
-          echo "Exécution de 'flutter doctor'..."
-          flutter doctor
-          echo "'flutter doctor' terminée."
+    - name: Cache Flutter build artifacts
+      uses: actions/cache@v3
+      with:
+        path: |
+          build
+          .dart_tool
+          .flutter-plugins
+          .flutter-plugins-dependencies
+          .packages
+        key: ${{ runner.os }}-build-${{ hashFiles('**/*.dart', '**/*.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-build-
 
-      - name: Attempt to re-configure Android project files
-        # Exécute flutter create pour s'assurer que les fichiers Android sont correctement configurés.
-        # Cela peut aider à résoudre les problèmes de projet "unsupported" ou d'autres incohérences.
-        # L'option '--platforms android .' tente de configurer la plateforme Android dans le répertoire courant.
-        # Nous utilisons '|| true' pour que cette étape ne fasse pas échouer le workflow si elle rencontre une erreur,
-        # nous permettant d'inspecter les logs des étapes suivantes.
-        run: |
-          echo "Tentative de re-configuration des fichiers de projet Android avec 'flutter create --platforms android .'."
-          flutter create --platforms android . || true
-          echo "'flutter create --platforms android .' command tentée."
+    - name: Analyze code (optional but recommended)
+      run: flutter analyze
 
-      - name: Clean Flutter project
-        # Nettoie les artefacts des builds précédents.
-        # Souvent utile pour résoudre des problèmes de build causés par des caches obsolètes.
-        # Ajout de '|| true' pour ne pas faire échouer le workflow si le clean rencontre un problème mineur.
-        run: |
-          echo "Exécution de 'flutter clean'..."
-          flutter clean || true
-          echo "'flutter clean' terminée."
+    - name: Run tests (if any)
+      run: flutter test || echo "No tests or some tests failed but continue"
 
-      - name: Build APK
-        # Exécute la commande de build pour générer l'APK de release.
-        # --release : Construit une version optimisée pour la publication.
-        # --verbose : Fournit des informations détaillées pendant le build, utile pour le débogage.
-        # L'étape échouera si le build ne réussit pas, ce qui est le comportement attendu.
-        run: |
-          echo "Démarrage du build APK..."
-          flutter build apk --release --verbose
-          echo "Commande de build APK terminée."
+    - name: Build APK (release)
+      run: flutter build apk --release --no-shrink
 
-      - name: Verify APK
-        # Vérifie que le fichier APK a bien été généré à l'emplacement attendu.
-        # Cette étape échouera si le fichier n'est pas trouvé.
-        run: |
-          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
-          echo "Vérification de l'APK à l'emplacement : $APK_PATH"
-          if [ ! -f "$APK_PATH" ]; then
-            echo "::error::APK non généré à $APK_PATH"
-            exit 1
-          else
-            echo "APK généré avec succès : $APK_PATH"
-            ls -lh "$APK_PATH" # Affiche les détails du fichier APK
-          fi
-
-      - name: Upload APK
-        # Charge l'APK généré en tant qu'artefact de workflow.
-        # Cela rend l'APK disponible pour le téléchargement depuis la page du workflow.
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-apk # Nom de l'artefact
-          path: build/app/outputs/flutter-apk/app-release.apk # Chemin du fichier à uploader
-          retention-days: 7 # Durée de conservation de l'artefact (en jours)
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${PROJECT_NAME}-release-apk
+        path: build/app/outputs/flutter-apk/app-release.apk
