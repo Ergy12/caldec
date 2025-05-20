@@ -1,25 +1,50 @@
-<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="cd.gov.caldec">
+    package="cd.gov.caldec"> <!-- ⚠️ Remplacez par votre package name (doit matcher avec build.gradle) -->
+
+    <!-- Permissions (ajoutez seulement celles nécessaires) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Exemple d'autres permissions courantes :
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    -->
 
     <application
-        android:name="io.flutter.app.FlutterApplication"
-        android:label="caldec"
-        android:icon="@mipmap/ic_launcher">
+        android:name="io.flutter.app.FlutterApplication" <!-- Obligatoire pour Flutter -->
+        android:label="caldec" <!-- Nom affiché sur le téléphone -->
+        android:icon="@mipmap/ic_launcher" <!-- Icône dans mipmap/ -->
+        android:roundIcon="@mipmap/ic_launcher_round" <!-- Icône ronde (optionnel) -->
+        android:usesCleartextTraffic="true" <!-- Autorise HTTP (désactivez pour production) -->
+        android:requestLegacyExternalStorage="true"> <!-- Pour accès storage Android 10+ -->
+
         <activity
             android:name=".MainActivity"
+            android:exported="true" <!-- Obligatoire depuis Android 12 -->
             android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
-            <meta-data
-                android:name="flutterEmbedding"
-                android:value="2" />
+
+            <!-- Intent Filter pour le lancement de l'app -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- Splash Screen (Flutter 2.5+) -->
+            <meta-data
+                android:name="io.flutter.embedding.android.SplashScreenDrawable"
+                android:resource="@drawable/launch_background"/>
         </activity>
+
+        <!-- Flutter's embedding v2 (obligatoire) -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2"/>
+
+        <!-- Autres métadonnées pour plugins (ex: Firebase) -->
+        <!-- <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="high_importance_channel"/> -->
     </application>
 </manifest>
