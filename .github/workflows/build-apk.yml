@@ -6,8 +6,8 @@ on:
   workflow_dispatch: # Permet de déclencher le workflow manuellement depuis l'interface GitHub
 
 env:
-  # Spécifiez la version de Flutter. Utilisation de la version stable pour une meilleure fiabilité.
-  FLUTTER_VERSION: "stable"
+  # Nous n'avons plus besoin de définir FLUTTER_VERSION ici car nous spécifions le canal directement dans l'étape setup.
+  # FLUTTER_VERSION: "stable"
 
 jobs:
   build:
@@ -29,11 +29,11 @@ jobs:
           cache: 'gradle' # Active le cache Gradle pour accélérer les builds suivants
 
       - name: Setup Flutter
-        # Configure l'environnement Flutter
+        # Configure l'environnement Flutter en spécifiant le canal stable.
+        # L'action téléchargera la dernière version stable disponible.
         uses: subosito/flutter-action@v2
         with:
-          # Utilise la version stable de Flutter
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          # flutter-version n'est plus spécifié ici, car nous utilisons le canal.
           channel: stable # Spécifie explicitement le canal stable
           cache: true # Active le cache Flutter pour accélérer les builds suivants
 
