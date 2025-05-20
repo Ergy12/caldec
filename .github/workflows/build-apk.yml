@@ -14,6 +14,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest # Exécute le job sur un runner Ubuntu
+    timeout-minutes: 30 # Ajout d'un timeout pour éviter des exécutions trop longues
 
     steps:
       - name: Checkout code
@@ -45,6 +46,30 @@ jobs:
           echo "Running 'flutter pub get'..."
           flutter pub get
           echo "'flutter pub get' completed."
+
+      - name: List contents of android directory before potential recreation
+        # Liste les fichiers dans le dossier android pour vérifier sa présence et son contenu initial
+        run: |
+          echo "Contents of android/ directory before potential recreation:"
+          ls -la android/ || echo "android/ directory not found or empty." # Affiche le contenu ou un message si le dossier n'existe pas
+
+      - name: Attempt to re-configure Android project files
+        # Exécute flutter create pour s'assurer que les fichiers Android sont correctement configurés
+        # Cela peut aider à résoudre les problèmes de projet "unsupported"
+        # L'option '--platforms android .' tente de configurer la plateforme Android dans le répertoire courant
+        run: |
+          echo "Attempting to re-configure Android project files using 'flutter create --platforms android .'"
+          flutter create --platforms android .
+          echo "'flutter create --platforms android .' command completed."
+        # Continue même si cette étape échoue, pour pouvoir inspecter les logs suivants si nécessaire.
+        # Si le problème persiste, on pourra rendre cette étape critique.
+        continue-on-error: true
+
+      - name: List contents of android directory after potential recreation
+        # Liste à nouveau les fichiers dans le dossier android après l'étape flutter create
+        run: |
+          echo "Contents of android/ directory after potential recreation:"
+          ls -la android/ || echo "android/ directory not found or empty after create."
 
       - name: Clean Flutter project
         # Nettoie les artefacts des builds précédents
