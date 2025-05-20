@@ -2,56 +2,34 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main # Exécute le workflow sur chaque push sur la branche 'main'
   pull_request:
-    branches: [ main ]
-  workflow_dispatch:  # Permet de déclencher manuellement
+    branches:
+      - main # Exécute le workflow sur chaque pull request vers la branche 'main'
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    env:
-      FLUTTER_CHANNEL: stable
-      PROJECT_NAME: caldec
+  build_apk:
+    runs-on: ubuntu-latest # Utilise un runner Ubuntu
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4 # Récupère le code de votre dépôt GitHub
 
-      - name: Setup Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: '3.x.x' # Spécifiez la version de Flutter que vous souhaitez utiliser (ex: 3.22.x, 3.19.x)
+          channel: 'stable' # Utilisez le canal stable
 
-      - name: Display Flutter version
-        run: flutter --version
+      - name: Get Flutter packages
+        run: flutter pub get # Télécharge les dépendances Flutter
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Cache Pub packages
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.pub-cache
-            .dart_tool
-          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-flutter-
-
-      - name: Analyze Dart code (optionnel)
-        run: flutter analyze || true
-
-      - name: Run tests (optionnel)
-        run: flutter test || echo "No tests found or some failed"
-
-      - name: Build APK
-        run: flutter build apk --release --no-shrink
+      - name: Build Android APK
+        run: flutter build apk --release # Construit l'APK en mode release
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v3.1.3
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PROJECT_NAME }}-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          
+          name: app-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk # Chemin de l'APK généré
