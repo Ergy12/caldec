@@ -3,14 +3,15 @@ name: Build Flutter APK
 on:
   push:
     branches:
-      - main  # Exécute le workflow sur chaque push sur la branche 'main'
+      - main
   pull_request:
     branches:
-      - main  # Exécute le workflow sur chaque PR vers 'main'
+      - main
+  workflow_dispatch:  # Ajout du déclencheur manuel
 
 jobs:
   build_apk:
-    runs-on: ubuntu-latest  # Runner Ubuntu
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -19,7 +20,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.x.x'  # Compatible avec toutes les versions 3
+          flutter-version: '3.22.1'
           channel: stable
 
       - name: Get Flutter packages
